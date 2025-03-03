@@ -139,32 +139,11 @@ public class Controller implements IView {
                         break;
                     }
                 }
-                ImageView rook = null;
                 if (existingPiece != null) {
-                    if(existingPiece.getImage().getUrl().contains("rook") && existingPiece.getImage().getUrl().contains("king")) {
-                        rook = existingPiece;
-                    }
                     newSquare.getChildren().remove(existingPiece);
                 }
-                if(rook != null){
-                    if(!piece.getImage().getUrl().contains("white")){
-                        int temp = newCol;
-                        newCol = oldCol;
-                        oldCol = temp;
-                    }
-                    StackPane newRookSquare, newKingSquare;
-                    if(oldCol > newCol){
-                         newRookSquare = getNodeByRowColumnIndex(newRow, 3, chessBoard);
-                         newKingSquare = getNodeByRowColumnIndex(newRow, 2, chessBoard);
 
-                    } else {
-                         newRookSquare = getNodeByRowColumnIndex(newRow, 5, chessBoard);
-                         newKingSquare = getNodeByRowColumnIndex(newRow, 6, chessBoard);
-                    }
-                    newRookSquare.getChildren().add(rook);
-                    newKingSquare.getChildren().add(piece);
-                }
-                else newSquare.getChildren().add(piece);
+                newSquare.getChildren().add(piece);
             } else {
                 System.out.println("No piece found in the old square.");
             }

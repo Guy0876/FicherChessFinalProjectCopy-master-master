@@ -50,27 +50,50 @@ public class Model {
         long movePosition = indexToBitboard(newRow, newCol);
         Rooks rooks = (Rooks)(isWhiteTurn ? whitePieces.get(3) : blackPieces.get(3));
         if((rooks.getBitboard() & movePosition) != 0) {
-            long kingPosition = findKingPosition(selectedPiece.isWhite());
-            boolean isLeftRook = selectedPiece.isWhite() ? kingPosition > movePosition : kingPosition < movePosition;
             King king = (King)(isWhiteTurn ? whitePieces.get(5) : blackPieces.get(5));
+            long oldPosition = indexToBitboard(oldRow, oldCol);
+            if(king.getBitboard() != oldPosition) return false;
+            boolean isLeftRook = selectedPiece.isWhite() ? king.getBitboard() > absolute(movePosition) : king.getBitboard() < movePosition;
             if(king.getHasMoved() && (isLeftRook ? rooks.getHasMovedLeft() : rooks.getHasMovedRight())) {
                 return false;
             }
             long temp = king.getBitboard();
             while((temp & rooks.getBitboard()) == 0){
-                if(isLeftRook) temp <<= 1;
-                else temp >>>= 1;
-                if((temp & Piece.allPieces) != 0) return false;
+                if(isLeftRook) temp >>>= 1;
+                else temp <<= 1;
+                if(((temp & Piece.allPieces) & ~rooks.getBitboard()) != 0) return false;
             }
-            castle(movePosition, indexToBitboard(oldRow, oldCol), isLeftRook, king, rooks);
-            return true;
+            long pieces = Piece.allPieces & ~king.getBitboard() & ~rooks.getBitboard();
+            if(isLeftRook && !isWhiteTurn) {
+                if ((pieces & 0x0000000000000006L) != 0) return false;
+            }
+            else if(isLeftRook && isWhiteTurn) {
+                if ((pieces & 0x0600000000000000L) != 0) return false;
+            }
+            else if(!isLeftRook && !isWhiteTurn) {
+                if ((pieces & 0x0000000000000070L) != 0) return false;
+            }
+            else if(!isLeftRook && isWhiteTurn) {
+                if ((pieces & 0x7000000000000000L) != 0) return false;
+            }
+            return castle(movePosition, indexToBitboard(oldRow, oldCol), isLeftRook, king, rooks);
         }
         boolean isLegal = (possibleMoves & movePosition) != 0;
         if(isLegal) updateTurn(oldRow, oldCol, newRow, newCol);
         return isLegal;
     }
 
-    private void castle(long movePosition, long oldPosition, boolean isLeftRook, King king, Rooks rooks) {
+    public long absolute(long a){
+        if((a & 0x8000000000000000L) != 0) return a * -1;
+        return a;
+    }
+
+    private boolean castle(long movePosition, long oldPosition, boolean isLeftRook, King king, Rooks rooks) {
+        long oldRooks = rooks.getBitboard();
+        long oldKing = king.getBitboard();
+        long oldAllPieces = Piece.allPieces;
+        long oldWhitePieces = Piece.whitePieces;
+        long oldBlackPieces = Piece.blackPieces;
         long kingPosition = oldPosition;
         long rookPosition = movePosition;
         int newKingPositionCol = isLeftRook ? 2 : 6;
@@ -85,11 +108,54 @@ public class Model {
         } else {
             Piece.blackPieces = (Piece.blackPieces & ~kingPosition & ~rookPosition) | newKingPosition | newRookPosition;
         }
+        if(isKingInCheck(isWhiteTurn) || isRookThreatened(isWhiteTurn, newRookPosition)) {
+            king.setBitboard(oldKing);
+            rooks.setBitboard(oldRooks);
+            Piece.allPieces = oldAllPieces;
+            Piece.whitePieces = oldWhitePieces;
+            Piece.blackPieces = oldBlackPieces;
+            return false;
+        }
         if(isLeftRook) rooks.setHasMovedLeft(true);
         else rooks.setHasMovedRight(true);
         king.setHasMoved(true);
+        isWhiteTurn = !isWhiteTurn;
+        possibleMoves = 0L;
+        selectedPiece = null;
+
+        // Check if the move puts the opponent's king in check
+        if (isKingInCheck(!isWhiteTurn)) {
+            System.out.println((isWhiteTurn ? "Black" : "White") + " king is in check!");
+            Piece.check = true;
+
+            if(isCheckmate(isWhiteTurn)) {
+                System.out.println((isWhiteTurn ? "Black" : "White") + " won the game !!!");
+            }
+        }
+        return true;
     }
 
+    public boolean isRookThreatened(boolean isWhite, long rookPosition){
+        ArrayList<Piece> opponentPieces = isWhite ? blackPieces : whitePieces;
+        for (Piece piece : opponentPieces) {
+            if(piece instanceof Rooks || piece instanceof Bishops) {
+                long temp = piece.getBitboard();
+                for (int i = 0; i < 64; i++) {
+                    long movePosition = 1L << i;
+                    if ((temp & movePosition) != 0) {
+                        long possibleMoves = piece.possibleMoves(movePosition);
+                        if ((possibleMoves & rookPosition) != 0) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            else if ((piece.possibleMoves(piece.getBitboard()) & rookPosition) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
     private void updateTurn(int oldRow, int oldCol, int newRow, int newCol) {
         ArrayList<Piece> opponentPieces = isWhiteTurn ? blackPieces : whitePieces;
         long oldPosition = indexToBitboard(oldRow, oldCol);
